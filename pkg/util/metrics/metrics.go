@@ -27,8 +27,17 @@ import (
 // Processes common config and executes according to the caller
 func ProcessMetricsScraperConfig(scraperConfig ScraperConfig) Scraper {
 	userMetadata := make(map[string]any)
+	if scraperConfig.SummaryMetadata == nil {
+		scraperConfig.SummaryMetadata = make(map[string]any)
+	}
+	if scraperConfig.MetricsMetadata == nil {
+		scraperConfig.MetricsMetadata = make(map[string]any)
+	}
 	if len(scraperConfig.ConfigSpec.MetricsEndpoints) == 0 && scraperConfig.MetricsEndpoint == "" {
-		return Scraper{}
+		return Scraper{
+			SummaryMetadata: scraperConfig.SummaryMetadata,
+			MetricsMetadata: scraperConfig.MetricsMetadata,
+		}
 	}
 	var err error
 	var indexer *indexers.Indexer
@@ -45,12 +54,8 @@ func ProcessMetricsScraperConfig(scraperConfig ScraperConfig) Scraper {
 	}
 	// Combine users provided metadata with metrics and summary metadata
 	for k, v := range userMetadata {
-		if scraperConfig.SummaryMetadata != nil {
-			scraperConfig.SummaryMetadata[k] = v
-		}
-		if scraperConfig.MetricsMetadata != nil {
-			scraperConfig.MetricsMetadata[k] = v
-		}
+		scraperConfig.SummaryMetadata[k] = v
+		scraperConfig.MetricsMetadata[k] = v
 	}
 	// MetricsEndpoint has preference over the configuration file
 	// if --metrics-directory is set, retain the value that is overwritten by UnmarshalYAML default

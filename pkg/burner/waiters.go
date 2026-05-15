@@ -34,6 +34,7 @@ import (
 
 	"github.com/kube-burner/kube-burner/v2/pkg/burner/types"
 	"github.com/kube-burner/kube-burner/v2/pkg/config"
+	"github.com/kube-burner/kube-burner/v2/pkg/util/cluster"
 )
 
 var (
@@ -113,6 +114,10 @@ func (ex *JobExecutor) waitForObject(ctx context.Context, ns string, obj *object
 			case Pod:
 				err = ex.waitForPod(ctx, ns, labelSelectorString)
 			case Build, BuildConfig:
+				if !ex.clusterInfo.Has(cluster.APIGroupBuild) {
+					log.Debugf("Skipping wait for %s: %s API not present", kind, cluster.APIGroupBuild)
+					break
+				}
 				err = ex.waitForBuild(ctx, ns, obj, labelSelectorString)
 			case PersistentVolumeClaim:
 				err = ex.waitForPVC(ctx, ns, labelSelectorString)

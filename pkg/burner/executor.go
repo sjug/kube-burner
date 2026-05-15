@@ -22,6 +22,7 @@ import (
 
 	"github.com/kube-burner/kube-burner/v2/pkg/config"
 	"github.com/kube-burner/kube-burner/v2/pkg/util"
+	"github.com/kube-burner/kube-burner/v2/pkg/util/cluster"
 	"github.com/kube-burner/kube-burner/v2/pkg/util/fileutils"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
@@ -60,9 +61,10 @@ type JobExecutor struct {
 	objectOperations  int32
 	nsChurning        bool
 	hookManager       *HookManager
+	clusterInfo       cluster.Info
 }
 
-func newExecutor(configSpec config.Spec, kubeClientProvider *config.KubeClientProvider, job config.Job, embedCfg *fileutils.EmbedConfiguration) JobExecutor {
+func newExecutor(configSpec config.Spec, kubeClientProvider *config.KubeClientProvider, job config.Job, embedCfg *fileutils.EmbedConfiguration, clusterInfo cluster.Info) JobExecutor {
 	ex := JobExecutor{
 		Job:               job,
 		createdNamespaces: make(map[string]bool),
@@ -75,6 +77,7 @@ func newExecutor(configSpec config.Spec, kubeClientProvider *config.KubeClientPr
 		deletionStrategy:  configSpec.GlobalConfig.DeletionStrategy,
 		objectOperations:  0,
 		hookManager:       NewHookManager(context.Background(), len(job.Hooks)),
+		clusterInfo:       clusterInfo,
 	}
 
 	clientSet, runtimeRestConfig := kubeClientProvider.ClientSet(job.QPS, job.Burst)

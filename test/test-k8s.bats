@@ -160,6 +160,26 @@ teardown_file() {
 }
 
 # bats test_tags=subsystem:indexing
+@test "kube-burner-read.yml: plain k8s cluster metadata is stamped" {
+  export LOCAL_INDEXING=true
+  run_cmd ${KUBE_BURNER} init -c kube-burner-read.yml --uuid=${UUID} --log-level=debug
+  check_file_list ${METRICS_FOLDER}/jobSummary.json
+  jq -e '
+    length > 0 and
+    all(.[]; .distribution == "kubernetes"
+      and .microshift == false
+      and (has("platform") | not)
+      and (has("openshift") | not)
+      and (has("microshiftVersion") | not)
+      and (has("microshiftMajorVersion") | not)
+      and (.k8sVersion | type == "string")
+      and (.k8sVersion | length > 0)
+      and (.totalNodes | type == "number")
+      and (.totalNodes >= 1))
+  ' ${METRICS_FOLDER}/jobSummary.json
+}
+
+# bats test_tags=subsystem:indexing
 @test "kube-burner index: local-indexing=true; tarball=true" {
   sleep 1m # Sleep is required to prevent collecting metrics right after spinning up the cluster, which can lead to missing datapoints
   run_cmd ${KUBE_BURNER} index --uuid=${UUID} -u http://localhost:9090 -m "metrics-profile.yaml,metrics-profile.yaml" --tarball-name=metrics.tgz --start="$(date -d "-30 seconds" +%s)" --metrics-directory=${METRICS_FOLDER}

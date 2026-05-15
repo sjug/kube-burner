@@ -84,7 +84,7 @@ func (p *pprof) deployDaemonSet() error {
 				Verbs:     []string{"get", "list"},
 			},
 			{
-				APIGroups:     []string{"security.openshift.io"}, // Required for OpenShift
+				APIGroups:     []string{"security.openshift.io"}, // Required for OpenShift / MicroShift; harmless on plain k8s
 				Resources:     []string{"securitycontextconstraints"},
 				ResourceNames: []string{"hostaccess"},
 				Verbs:         []string{"use"},

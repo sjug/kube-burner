@@ -28,6 +28,7 @@ import (
 	"github.com/kube-burner/kube-burner/v2/pkg/measurements"
 	"github.com/kube-burner/kube-burner/v2/pkg/prometheus"
 	"github.com/kube-burner/kube-burner/v2/pkg/util"
+	"github.com/kube-burner/kube-burner/v2/pkg/util/cluster"
 	"github.com/kube-burner/kube-burner/v2/pkg/util/fileutils"
 	"github.com/kube-burner/kube-burner/v2/pkg/util/metrics"
 	"github.com/kube-burner/kube-burner/v2/pkg/watchers"
@@ -86,11 +87,19 @@ func Run(configSpec config.Spec, kubeClientProvider *config.KubeClientProvider, 
 	log.Infof("🔥 Starting kube-burner (%s@%s) with UUID %s", version.Version, version.GitCommit, uuid)
 	ctx, cancel := context.WithTimeout(context.Background(), configSpec.GlobalConfig.Timeout)
 	defer cancel()
+	clientSet, restConfig := kubeClientProvider.DefaultClientSet()
+	clusterInfo, err := cluster.Probe(clientSet, restConfig)
+	if err != nil {
+		log.Warnf("Cluster probe failed: %v (continuing without cluster metadata)", err)
+	}
+	if err == nil {
+		metricsScraper.SummaryMetadata = clusterInfo.ApplyMetadata(metricsScraper.SummaryMetadata)
+		metricsScraper.MetricsMetadata = clusterInfo.ApplyMetadata(metricsScraper.MetricsMetadata)
+	}
 	go func() {
 		var innerRC int
-		_, restConfig := kubeClientProvider.DefaultClientSet()
 		measurementsFactory := measurements.NewMeasurementsFactory(configSpec, metricsScraper.MetricsMetadata, additionalMeasurementFactoryMap)
-		jobExecutors = newExecutorList(configSpec, kubeClientProvider, embedCfg)
+		jobExecutors = newExecutorList(configSpec, kubeClientProvider, embedCfg, clusterInfo)
 		if err := handlePreloadImages(ctx, jobExecutors, kubeClientProvider); err != nil {
 			log.Error(err.Error())
 			return
@@ -358,7 +367,7 @@ func (ex *JobExecutor) executeHooksForJobStage(stage config.JobHook, errs *[]err
 }
 
 func Destroy(ctx context.Context, configSpec config.Spec, kubeClientProvider *config.KubeClientProvider) error {
-	jobExecutors := newExecutorList(configSpec, kubeClientProvider, nil)
+	jobExecutors := newExecutorList(configSpec, kubeClientProvider, nil, cluster.Info{})
 	for _, jobExecutor := range jobExecutors {
 		jobExecutor.gc(ctx, nil)
 	}
@@ -466,11 +475,11 @@ func verifyJobDefaults(job *config.Job, defaultTimeout time.Duration) {
 }
 
 // newExecutorList Returns a list of executors
-func newExecutorList(configSpec config.Spec, kubeClientProvider *config.KubeClientProvider, embedCfg *fileutils.EmbedConfiguration) []JobExecutor {
+func newExecutorList(configSpec config.Spec, kubeClientProvider *config.KubeClientProvider, embedCfg *fileutils.EmbedConfiguration, clusterInfo cluster.Info) []JobExecutor {
 	var executorList []JobExecutor
 	for _, job := range configSpec.Jobs {
 		verifyJobDefaults(&job, configSpec.GlobalConfig.Timeout)
-		executorList = append(executorList, newExecutor(configSpec, kubeClientProvider, job, embedCfg))
+		executorList = append(executorList, newExecutor(configSpec, kubeClientProvider, job, embedCfg, clusterInfo))
 	}
 	return executorList
 }
